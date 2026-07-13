@@ -1,0 +1,41 @@
+{
+  "name": "cgm-whatsapp-assistant",
+  "version": "1.0.0",
+  "description": "Connect WhatsApp to FreeStyle Libre & Dexcom (ONE+/G6/G7) CGMs — real-time glucose alerts, AI meal-photo carb counting, insulin dose suggestions, IOB tracking and a web dashboard. 7 languages.",
+  "keywords": [
+    "diabetes",
+    "type-1-diabetes",
+    "cgm",
+    "continuous-glucose-monitoring",
+    "freestyle-libre",
+    "librelinkup",
+    "dexcom",
+    "dexcom-share",
+    "dexcom-one-plus",
+    "whatsapp-bot",
+    "whatsapp",
+    "baileys",
+    "insulin",
+    "bolus-calculator",
+    "carb-counting",
+    "glucose-alerts",
+    "diabetes-management"
+  ],
+  "main": "src/index.js",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "baileys": "^7.0.0-rc13",
+    "dotenv": "^16.4.5",
+    "node-cache": "^5.1.2",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

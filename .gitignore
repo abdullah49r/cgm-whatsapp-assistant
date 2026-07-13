@@ -1,0 +1,8 @@
+node_modules/
+.env
+
+# Runtime state — never commit: contains WhatsApp session keys, CGM tokens and health data
+auth/
+data/
+
+*.log

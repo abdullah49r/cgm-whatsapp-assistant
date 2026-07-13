@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🩸 CGM Assistant — Dashboard</title>
+<style>
+  :root{
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --series:#3987e5;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  header h1{font-size:18px;margin:0}
+  .badge{background:var(--surface);border:1px solid var(--border);border-radius:999px;
+    padding:3px 12px;font-size:12px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .spacer{flex:1}
+  .grid{display:grid;gap:12px}
+  .tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+  .cols{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .card h2{font-size:14px;margin:0 0 12px;color:var(--ink2);font-weight:600}
+  .tile .v{font-size:34px;font-weight:700;line-height:1.1}
+  .tile .s{color:var(--muted);font-size:12px;margin-top:4px}
+  .tile .arrow{font-size:22px;margin-left:6px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:500;font-size:12px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid)}
+  td{padding:6px 8px;border-bottom:1px solid var(--grid);font-size:13px}
+  tr:last-child td{border-bottom:0}
+  .num{font-variant-numeric:tabular-nums}
+  button{background:var(--series);color:#fff;border:0;border-radius:8px;padding:8px 14px;
+    font-size:13px;cursor:pointer;font-family:inherit}
+  button.ghost{background:transparent;border:1px solid var(--axis);color:var(--ink2)}
+  button.ghost:hover{border-color:var(--series);color:var(--ink)}
+  button:disabled{opacity:.5;cursor:default}
+  input,select{background:var(--page);border:1px solid var(--axis);color:var(--ink);
+    border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--series)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row+.row{margin-top:10px}
+  .setting{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--grid)}
+  .setting:last-child{border-bottom:0}
+  .setting .lbl{flex:1;font-size:13px;color:var(--ink2)}
+  .setting .range{color:var(--muted);font-size:11px}
+  .setting input{width:76px;text-align:center}
+  .chartbar{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .chartbar .spacer{flex:1}
+  .rbtn{background:transparent;border:1px solid var(--axis);color:var(--ink2);padding:4px 12px;border-radius:999px;font-size:12px}
+  .rbtn.on{background:var(--series);border-color:var(--series);color:#fff}
+  #chartbox{position:relative}
+  canvas{width:100%;height:280px;display:block}
+  #tip{position:absolute;pointer-events:none;background:#0d0d0dee;border:1px solid var(--border);
+    border-radius:8px;padding:6px 10px;font-size:12px;display:none;white-space:nowrap;z-index:5}
+  #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#262624;
+    border:1px solid var(--border);color:var(--ink);padding:10px 18px;border-radius:10px;
+    font-size:13px;display:none;z-index:9;max-width:90vw}
+  .muted{color:var(--muted)} .small{font-size:12px}
+  .statgood{color:var(--good)} .statwarn{color:var(--warning)} .statserious{color:var(--serious)} .statcrit{color:var(--critical)}
+  .provider-fields{margin-top:10px;display:none}
+  .provider-fields.show{display:block}
+  .divider{border:0;border-top:1px solid var(--grid);margin:12px 0}
+  footer{color:var(--muted);font-size:11px;margin:18px 4px;text-align:center}
+  #readingsTable{display:none;max-height:280px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🩸 CGM Assistant</h1>
+    <span class="badge" id="providerBadge"><span class="dot" style="background:var(--series)"></span><span id="providerName">…</span></span>
+    <span class="badge"><span class="dot" id="waDot" style="background:var(--muted)"></span>WhatsApp</span>
+    <span class="spacer"></span>
+    <span class="badge" id="uptime">…</span>
+  </header>
+
+  <div class="grid tiles" style="margin-bottom:12px">
+    <div class="card tile">
+      <h2>Glucose now</h2>
+      <div class="v num"><span id="bgVal">—</span><span class="arrow" id="bgArrow"></span></div>
+      <div class="s" id="bgMeta">—</div>
+    </div>
+    <div class="card tile">
+      <h2>Insulin on board</h2>
+      <div class="v num"><span id="iobVal">—</span><span style="font-size:16px;color:var(--muted)"> U</span></div>
+      <div class="s" id="iobMeta">—</div>
+    </div>
+    <div class="card tile">
+      <h2>Alerts</h2>
+      <div class="v" id="muteState" style="font-size:22px">—</div>
+      <div class="s" id="muteMeta"></div>
+    </div>
+    <div class="card tile">
+      <h2>Learning engine</h2>
+      <div class="v num" id="learnVal" style="font-size:22px">—</div>
+      <div class="s" id="learnMeta">qualified meals toward tuning</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div class="chartbar">
+      <h2 style="margin:0">Glucose curve</h2>
+      <span class="spacer"></span>
+      <button class="rbtn" data-h="6">6h</button>
+      <button class="rbtn on" data-h="12">12h</button>
+      <button class="rbtn" data-h="24">24h</button>
+      <button class="rbtn" data-h="72">3d</button>
+      <button class="rbtn" data-h="168">1w</button>
+      <button class="rbtn" id="tblToggle">Table</button>
+    </div>
+    <div id="chartbox">
+      <canvas id="chart"></canvas>
+      <div id="tip"></div>
+    </div>
+    <div id="readingsTable"></div>
+    <div class="small muted" id="chartEmpty" style="display:none;text-align:center;padding:30px 0">
+      No readings logged yet — they are collected automatically every 5 minutes from now on
+    </div>
+  </div>
+
+  <div class="grid cols" style="margin-bottom:12px">
+    <div class="card">
+      <h2>🔌 Glucose source</h2>
+      <div class="row">
+        <label class="row" style="gap:6px"><input type="radio" name="prov" value="libre"> FreeStyle Libre</label>
+        <label class="row" style="gap:6px"><input type="radio" name="prov" value="dexcom"> Dexcom</label>
+      </div>
+      <div class="provider-fields" id="libreFields">
+        <div class="row"><input id="libEmail" placeholder="LibreLinkUp follower email" style="flex:1" autocomplete="off"></div>
+        <div class="row" style="margin-top:8px">
+          <input id="libPass" type="password" placeholder="Password" style="flex:1" autocomplete="new-password">
+        </div>
+        <div class="small muted" style="margin-top:6px" id="libSaved"></div>
+        <div class="small muted" style="margin-top:2px">Requires a LibreLinkUp <i>follower</i> account (LibreLink app → Connected Apps)</div>
+      </div>
+      <div class="provider-fields" id="dexFields">
+        <div class="row"><input id="dexUser" placeholder="Dexcom username / email / phone" style="flex:1" autocomplete="off"></div>
+        <div class="row" style="margin-top:8px">
+          <input id="dexPass" type="password" placeholder="Password" style="flex:1" autocomplete="new-password">
+          <select id="dexRegion">
+            <option value="ous" selected>Outside US</option>
+            <option value="us">United States</option>
+            <option value="jp">Japan</option>
+          </select>
+        </div>
+        <div class="small muted" style="margin-top:6px" id="dexSaved"></div>
+        <div class="small muted" style="margin-top:2px">Requires the Share feature ON in the Dexcom app with at least one follower</div>
+      </div>
+      <hr class="divider">
+      <div class="row">
+        <button class="ghost" id="btnTest">Test connection</button>
+        <button id="btnSwitch">Switch to this source</button>
+        <span class="small" id="provResult"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⚡ Quick actions</h2>
+      <div class="row">
+        <span class="small muted" style="width:60px">Mute:</span>
+        <button class="ghost" data-mute="0.5">30m</button>
+        <button class="ghost" data-mute="1">1h</button>
+        <button class="ghost" data-mute="2">2h</button>
+        <button class="ghost" data-mute="6">6h</button>
+        <button class="ghost" id="btnUnmute">🔔 Unmute</button>
+      </div>
+      <div class="row">
+        <span class="small muted" style="width:60px">Dose:</span>
+        <input id="doseUnits" type="number" step="0.5" min="0.5" max="40" placeholder="U" style="width:80px">
+        <button id="btnDose">Log dose</button>
+      </div>
+      <div class="row">
+        <span class="small muted" style="width:60px">Other:</span>
+        <button class="ghost" id="btnCancel">Cancel pending tasks</button>
+        <button class="ghost" id="btnWaTest">WhatsApp test message</button>
+      </div>
+      <hr class="divider">
+      <div id="remindersBox" class="small muted">No pending tasks</div>
+      <div id="suggestionBox" class="small" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="grid cols" style="margin-bottom:12px">
+    <div class="card">
+      <h2>⚙️ Settings</h2>
+      <div id="settingsBox"></div>
+    </div>
+    <div class="card">
+      <h2>💉 Recent doses</h2>
+      <div style="overflow-x:auto"><table id="dosesTable">
+        <thead><tr><th>Time</th><th>Units</th><th>Kind</th><th>Still active</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <h2>🍽️ Recent meals</h2>
+    <div style="overflow-x:auto"><table id="mealsTable">
+      <thead><tr><th>Time</th><th>Description</th><th>Carbs (g)</th><th>Dose</th><th>+2h</th><th>+3h</th><th>Learn</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+
+  <footer>
+    Last update: <span id="lastUpdate">—</span> · auto-refreshes every minute ·
+    ⚠️ Served over plain HTTP — use it from networks you trust
+  </footer>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+let OV = null, READINGS = [], RANGE_H = 12, showTable = false;
+
+// ===== Helpers =====
+const fmtTime = (t) => new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+const fmtDT = (t) => new Date(t).toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const ago = (t) => {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ${m % 60}m ago` : `${Math.floor(h / 24)}d ago`;
+};
+function toast(msg, bad = false) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.borderColor = bad ? 'var(--critical)' : 'var(--border)';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => (el.style.display = 'none'), 3500);
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    headers: { 'content-type': 'application/json' },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (r.status === 401) { location.reload(); throw new Error('Session expired'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+// Value → status class (fixed status colors)
+function bgClass(v, th) {
+  if (v < (th?.low ?? 70)) return 'statcrit';
+  if (v <= 180) return 'statgood';
+  if (v < 250) return 'statwarn';
+  return 'statserious';
+}
+function bgColor(v, th) {
+  return getComputedStyle(document.documentElement).getPropertyValue(
+    { statcrit: '--critical', statgood: '--good', statwarn: '--warning', statserious: '--serious' }[bgClass(v, th)]
+  ).trim();
+}
+
+// ===== Overview =====
+async function loadOverview() {
+  OV = await api('/api/overview');
+  const r = OV.reading;
+  if (r) {
+    $('bgVal').textContent = r.value;
+    $('bgVal').className = 'num ' + bgClass(r.value, OV.thresholds);
+    $('bgArrow').textContent = r.trend?.arrow || '';
+    $('bgMeta').textContent = `${r.trend?.label || ''}${r.ageMinutes ? ' · ' + r.ageMinutes + 'm ago' : ' · fresh'}`;
+  } else {
+    $('bgVal').textContent = '—'; $('bgVal').className = 'num'; $('bgArrow').textContent = '';
+    $('bgMeta').textContent = OV.readingError || 'no reading';
+  }
+  $('iobVal').textContent = OV.iob.toFixed(1);
+  $('iobMeta').textContent = `decays over ${OV.diaHours} hours (linear)`;
+  const muted = OV.muteUntil > Date.now();
+  $('muteState').textContent = muted ? '🔕 muted' : '🔔 active';
+  $('muteMeta').textContent = muted ? 'until ' + fmtTime(OV.muteUntil) + ' (lows never muted)' : '';
+  $('learnVal').textContent = `${OV.learn.qualified} / ${OV.learn.needed}`;
+  $('providerName').textContent = OV.provider === 'dexcom' ? 'Dexcom' : 'Libre';
+  $('waDot').style.background = OV.whatsapp ? 'var(--good)' : 'var(--critical)';
+  $('uptime').textContent = 'up ' + ago(OV.startedAt).replace(' ago', '');
+  $('lastUpdate').textContent = fmtTime(Date.now());
+
+  // Selected provider + saved credentials
+  if (!document.querySelector('input[name=prov]:checked')) {
+    document.querySelector(`input[name=prov][value=${OV.provider}]`).checked = true;
+    updateProviderFields();
+  }
+  $('libSaved').textContent = OV.libre.configured
+    ? `Saved: ${OV.libre.email} — leave fields empty to use the saved account`
+    : 'No Libre credentials saved yet';
+  $('dexSaved').textContent = OV.dexcom.configured
+    ? `Saved: ${OV.dexcom.username} (${OV.dexcom.region}) — leave fields empty to use the saved account`
+    : 'No Dexcom credentials saved yet';
+  if (OV.dexcom.region) $('dexRegion').value = OV.dexcom.region;
+
+  // Pending tasks + active suggestion
+  $('remindersBox').innerHTML = OV.reminders.length
+    ? OV.reminders.map((x) => `⏰ ${x.name}${x.units ? ` (${x.units}U)` : ''} — ${fmtTime(x.dueAt)}`).join('<br>')
+    : 'No pending tasks';
+  $('suggestionBox').innerHTML = OV.suggestion
+    ? `💡 Active suggestion: ${OV.suggestion.totalUnits ?? OV.suggestion.units}U (${OV.suggestion.kind}) — confirm it on WhatsApp`
+    : '';
+
+  // Settings
+  if (!$('settingsBox').dataset.built) {
+    $('settingsBox').dataset.built = '1';
+    $('settingsBox').innerHTML = OV.settings.map((s) => `
+      <div class="setting">
+        <span class="lbl">${s.label}<br><span class="range">${s.min} – ${s.max}</span></span>
+        <input type="number" id="set_${s.key}" step="0.5" min="${s.min}" max="${s.max}" value="${s.value}">
+        <button class="ghost" data-set="${s.key}">Save</button>
+      </div>`).join('');
+    $('settingsBox').querySelectorAll('[data-set]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const key = b.dataset.set;
+        try {
+          const j = await api('/api/settings', { method: 'POST', body: { key, value: $('set_' + key).value } });
+          toast(`✅ ${j.label}: ${j.old} → ${j.value}`);
+        } catch (e) { toast(e.message, true); }
+      })
+    );
+  } else {
+    for (const s of OV.settings) {
+      const el = $('set_' + s.key);
+      if (el && document.activeElement !== el) el.value = s.value;
+    }
+  }
+}
+
+// ===== Chart =====
+async function loadReadings() {
+  const j = await api('/api/readings?hours=' + RANGE_H);
+  READINGS = j.readings;
+  drawChart();
+  renderReadingsTable();
+}
+function niceStep(range) {
+  if (range <= 8 * 36e5) return 36e5;
+  if (range <= 26 * 36e5) return 3 * 36e5;
+  if (range <= 80 * 36e5) return 12 * 36e5;
+  return 24 * 36e5;
+}
+let CG = null; // chart geometry for the tooltip
+function drawChart() {
+  const cv = $('chart'), box = $('chartbox');
+  const hasData = READINGS.length > 1;
+  $('chartEmpty').style.display = hasData ? 'none' : 'block';
+  box.style.display = showTable ? 'none' : 'block';
+  $('readingsTable').style.display = showTable ? 'block' : 'none';
+  if (!hasData || showTable) { CG = null; return; }
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = 280;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const th = OV?.thresholds || { high: 220, low: 70, target: 110 };
+  const pad = { top: 14, bottom: 26, left: 8, right: 44 };
+  const t1 = Date.now(), t0 = t1 - RANGE_H * 36e5;
+  const pts = READINGS.filter((r) => r.at >= t0);
+  const vals = pts.map((p) => p.v);
+  const yMin = Math.min(55, Math.min(...vals) - 10);
+  const yMax = Math.max(260, Math.max(...vals) + 20, th.high + 20);
+  const X = (t) => pad.left + ((t - t0) / (t1 - t0)) * (W - pad.left - pad.right);
+  const Y = (v) => pad.top + (1 - (v - yMin) / (yMax - yMin)) * (H - pad.top - pad.bottom);
+
+  // Horizontal grid + labels on the right
+  ctx.font = '11px system-ui'; ctx.textBaseline = 'middle';
+  for (let v = Math.ceil(yMin / 50) * 50; v <= yMax; v += 50) {
+    ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, Y(v)); ctx.lineTo(W - pad.right, Y(v)); ctx.stroke();
+    ctx.fillStyle = css('--muted'); ctx.textAlign = 'left';
+    ctx.fillText(String(v), W - pad.right + 6, Y(v));
+  }
+  // Time labels
+  const step = niceStep(t1 - t0);
+  ctx.textAlign = 'center';
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+    ctx.fillStyle = css('--muted');
+    const d = new Date(t);
+    const lbl = step >= 24 * 36e5
+      ? d.toLocaleDateString('en-US', { weekday: 'short' })
+      : d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    ctx.fillText(lbl, X(t), H - 10);
+  }
+  // Alert threshold lines (dashed, status colors)
+  const hline = (v, color, label) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, Y(v)); ctx.lineTo(W - pad.right, Y(v)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.textAlign = 'right';
+    ctx.fillText(label, W - pad.right - 4, Y(v) - 8);
+  };
+  hline(th.high, css('--warning'), 'high alert ' + th.high);
+  hline(th.low, css('--critical'), 'low ' + th.low);
+
+  // The series line — breaks on gaps > 20 minutes
+  ctx.strokeStyle = css('--series'); ctx.lineWidth = 2;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  let prev = null;
+  for (const p of pts) {
+    if (prev && p.at - prev > 20 * 60_000) ctx.moveTo(X(p.at), Y(p.v));
+    else if (prev === null) ctx.moveTo(X(p.at), Y(p.v));
+    else ctx.lineTo(X(p.at), Y(p.v));
+    prev = p.at;
+  }
+  ctx.stroke();
+
+  // Out-of-range points in status colors with a surface ring, larger last point
+  for (const p of pts) {
+    const out = p.v < th.low || p.v >= th.high;
+    const isLast = p === pts[pts.length - 1];
+    if (!out && !isLast) continue;
+    ctx.beginPath();
+    ctx.arc(X(p.at), Y(p.v), isLast ? 4 : 2.5, 0, 7);
+    ctx.fillStyle = out ? bgColor(p.v, th) : css('--series');
+    ctx.strokeStyle = css('--surface'); ctx.lineWidth = 2;
+    ctx.fill(); ctx.stroke();
+  }
+  CG = { X, Y, pts, t0, t1, pad, W, H, th };
+}
+// Tooltip + crosshair
+$('chart').addEventListener('mousemove', (e) => {
+  if (!CG) return;
+  const rect = e.target.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  let best = null, bd = 1e9;
+  for (const p of CG.pts) {
+    const d = Math.abs(CG.X(p.at) - mx);
+    if (d < bd) { bd = d; best = p; }
+  }
+  const tip = $('tip');
+  if (!best || bd > 30) { tip.style.display = 'none'; drawChart(); return; }
+  drawChart();
+  const ctx = $('chart').getContext('2d');
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(CG.X(best.at), CG.pad.top); ctx.lineTo(CG.X(best.at), CG.H - CG.pad.bottom); ctx.stroke();
+  const arrows = { '-2': '↓↓', '-1': '↓', 0: '→', 1: '↑', 2: '↑↑' };
+  tip.innerHTML = `<b class="num">${best.v}</b> ${arrows[best.d] || ''} <span class="muted">· ${fmtDT(best.at)}</span>`;
+  tip.style.display = 'block';
+  const bx = $('chartbox').getBoundingClientRect();
+  let tx = e.clientX - bx.left + 14;
+  if (tx > bx.width - 150) tx = e.clientX - bx.left - 150;
+  tip.style.left = tx + 'px';
+  tip.style.top = Math.max(0, CG.Y(best.v) - 40) + 'px';
+});
+$('chart').addEventListener('mouseleave', () => { $('tip').style.display = 'none'; if (CG) drawChart(); });
+
+function renderReadingsTable() {
+  if (!showTable) return;
+  const rows = [...READINGS].reverse().slice(0, 200);
+  $('readingsTable').innerHTML = '<table><thead><tr><th>Time</th><th>Value</th></tr></thead><tbody>' +
+    rows.map((r) => `<tr><td>${fmtDT(r.at)}</td><td class="num ${bgClass(r.v, OV?.thresholds)}">${r.v}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+// ===== Doses & meals =====
+async function loadHistory() {
+  const j = await api('/api/history?days=14');
+  const kinds = { meal: 'meal', correction: 'correction', split2: 'second part', manual: 'manual' };
+  const dia = (OV?.diaHours || 4) * 36e5;
+  $('dosesTable').querySelector('tbody').innerHTML = j.doses.slice(0, 15).map((d) => {
+    const rem = Math.max(0, d.units * (1 - (Date.now() - d.at) / dia));
+    return `<tr><td>${fmtDT(d.at)}</td><td class="num">${d.units}</td><td>${kinds[d.kind] || d.kind}</td>
+      <td class="num">${rem > 0.05 ? rem.toFixed(1) + 'U' : '—'}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">No doses</td></tr>';
+
+  $('mealsTable').querySelector('tbody').innerHTML = j.meals.slice(0, 12).map((m) => {
+    const oc = (v) => v == null ? '—' : `<span class="num ${bgClass(v, OV?.thresholds)}">${v}</span>`;
+    return `<tr><td>${fmtDT(m.at)}</td><td>${(m.desc || '').slice(0, 40)}</td><td class="num">${m.carbs ?? '—'}</td>
+      <td class="num">${m.units ?? '—'}U</td><td>${oc(m.outcome2h)}</td><td>${oc(m.outcome3h)}</td>
+      <td>${m.qualified === true ? '✓' : m.qualified === false ? '✗' : '…'}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" class="muted">No meals</td></tr>';
+}
+
+// ===== Events =====
+document.querySelectorAll('.rbtn[data-h]').forEach((b) =>
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.rbtn[data-h]').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    RANGE_H = parseFloat(b.dataset.h);
+    loadReadings().catch((e) => toast(e.message, true));
+  })
+);
+$('tblToggle').addEventListener('click', () => {
+  showTable = !showTable;
+  $('tblToggle').classList.toggle('on', showTable);
+  drawChart(); renderReadingsTable();
+});
+function updateProviderFields() {
+  const v = document.querySelector('input[name=prov]:checked')?.value;
+  $('libreFields').classList.toggle('show', v === 'libre');
+  $('dexFields').classList.toggle('show', v === 'dexcom');
+}
+document.querySelectorAll('input[name=prov]').forEach((r) => r.addEventListener('change', updateProviderFields));
+function provBody() {
+  const provider = document.querySelector('input[name=prov]:checked')?.value || 'libre';
+  if (provider === 'dexcom')
+    return { provider, username: $('dexUser').value, password: $('dexPass').value, region: $('dexRegion').value };
+  return { provider, email: $('libEmail').value, password: $('libPass').value };
+}
+$('btnTest').addEventListener('click', async () => {
+  $('provResult').textContent = '⏳ testing...';
+  try {
+    const j = await api('/api/cgm/test', { method: 'POST', body: provBody() });
+    $('provResult').innerHTML = `✅ works — reading: <b class="num">${j.reading.value}</b> ${j.reading.trend.arrow}`;
+  } catch (e) { $('provResult').textContent = '❌ ' + e.message; }
+});
+$('btnSwitch').addEventListener('click', async () => {
+  const b = provBody();
+  if (!confirm(`Switch the glucose source to ${b.provider === 'dexcom' ? 'Dexcom' : 'Libre'}?`)) return;
+  $('provResult').textContent = '⏳ switching...';
+  try {
+    const j = await api('/api/cgm/switch', { method: 'POST', body: b });
+    $('provResult').textContent = '';
+    toast(`✅ Switched to ${j.providerLabel} — reading ${j.reading.value}`);
+    $('dexPass').value = ''; $('libPass').value = '';
+    await loadOverview();
+  } catch (e) { $('provResult').textContent = '❌ ' + e.message; }
+});
+document.querySelectorAll('[data-mute]').forEach((b) =>
+  b.addEventListener('click', async () => {
+    try {
+      await api('/api/mute', { method: 'POST', body: { hours: parseFloat(b.dataset.mute) } });
+      toast('🔕 Muted (low alerts are never muted)'); loadOverview();
+    } catch (e) { toast(e.message, true); }
+  })
+);
+$('btnUnmute').addEventListener('click', async () => {
+  try { await api('/api/unmute', { method: 'POST' }); toast('🔔 Alerts are on'); loadOverview(); }
+  catch (e) { toast(e.message, true); }
+});
+$('btnCancel').addEventListener('click', async () => {
+  try {
+    const j = await api('/api/cancel', { method: 'POST' });
+    toast(j.cancelled ? `🗑️ Cancelled ${j.cancelled} task(s)` : 'Nothing pending'); loadOverview();
+  } catch (e) { toast(e.message, true); }
+});
+$('btnDose').addEventListener('click', async () => {
+  const units = parseFloat($('doseUnits').value);
+  if (!units) return toast('Enter the number of units', true);
+  if (!confirm(`Log a ${units}U dose? (it counts toward insulin on board)`)) return;
+  try {
+    const j = await api('/api/dose', { method: 'POST', body: { units } });
+    toast(`✅ Logged ${units}U — on board now ~${j.iob.toFixed(1)}U`);
+    $('doseUnits').value = '';
+    loadOverview(); loadHistory();
+  } catch (e) { toast(e.message, true); }
+});
+$('btnWaTest').addEventListener('click', async () => {
+  try { await api('/api/wa/test', { method: 'POST' }); toast('✅ Test message sent to your WhatsApp'); }
+  catch (e) { toast(e.message, true); }
+});
+window.addEventListener('resize', () => drawChart());
+
+// ===== Boot & periodic refresh =====
+async function boot() {
+  try { await loadOverview(); } catch (e) { toast(e.message, true); }
+  try { await loadReadings(); } catch {}
+  try { await loadHistory(); } catch {}
+}
+boot();
+setInterval(() => loadOverview().catch(() => {}), 60_000);
+setInterval(() => { loadReadings().catch(() => {}); loadHistory().catch(() => {}); }, 5 * 60_000);
+</script>
+</body>
+</html>
